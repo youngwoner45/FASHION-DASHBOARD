@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>商品运营数据驾驶舱</title>
+    <!-- SheetJS 用于 Excel 读写 -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js">
+    </script>
+    <!-- Chart.js 用于图表 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js">
+    </script>
+    <style>
+        :root {
+            --bg: #f5f0eb;
+            --card-bg: #ffffff;
+            --text: #5a5653;
+            --text-light: #8c8782;
+            --text-muted: #b5b0aa;
+            --border: #e6e0d8;
+            --rose: #c4a8a2;
+            --sage: #a3b5a6;
+            --blue: #9aaab7;
+            --beige: #d4c9bc;
+            --hot: #d4b5b0;
+            --slow: #b0bcc4;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+            --radius: 16px;
+            --radius-sm: 12px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            padding: 24px;
+        }
+
+        .container {
+            max-width: 1500px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .header h1 {
+            font-size: 26px;
+            font-weight: 600;
+        }
+
+        .header .actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 10px 18px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            background: var(--card-bg);
+            color: var(--text);
+            font-size: 13px;
+            cursor: pointer;
+            transition: 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        button:hover {
+            border-color: var(--rose);
+            color: var(--rose);
+            box-shadow: var(--shadow);
+        }
+
+        button.primary {
+            background: var(--rose);
+            color: #fff;
+            border-color: var(--rose);
+        }
+
+        button.primary:hover {
+            background: #b8958f;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 24px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+        }
+
+        .upload-area {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius-sm);
+            padding: 32px;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.2s;
+            background: #fdfcfb;
+        }
+
+        .upload-area:hover,
+        .upload-area.dragover {
+            border-color: var(--rose);
+            background: #faf6f4;
+        }
+
+        .upload-area input {
+            display: none;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border-radius: var(--radius-sm);
+            padding: 20px;
+            text-align: center;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-light);
+            margin-top: 4px;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        @media(max-width:900px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        .chart-container canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+            align-items: center;
+        }
+
+        .filter-bar select,
+        .filter-bar input {
+            padding: 8px 14px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 13px;
+            background: #fff;
+            color: var(--text);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th {
+            background: #faf7f4;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-light);
+            border-bottom: 2px solid var(--border);
+        }
+
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .badge-hot {
+            background: #f5e8e5;
+            color: #b87060;
+        }
+
+        .badge-slow {
+            background: #e8edf0;
+            color: #6b8299;
+        }
+
+        .badge-normal {
+            background: #e8ede9;
+            color: #6b8f6e;
+        }
+
+        .progress-bar {
+            height: 6px;
+            background: var(--border);
+            border-radius: 3px;
+            overflow: hidden;
+            min-width: 60px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 3px;
+        }
+
+        .fill-hot {
+            background: var(--hot);
+        }
+
+        .fill-slow {
+            background: var(--slow);
+        }
+
+        .fill-normal {
+            background: var(--sage);
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .mt-16 {
+            margin-top: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <!-- 头部 -->
+        <div class="header">
+            <div>
+                <h1>📊 商品运营数据驾驶舱</h1>
+                <p style="color:var(--text-muted); font-size:13px;">售罄率 · 动销率 · 毛利率 · 同比 · 品类分析 · 一键导出</p>
+            </div>
+            <div class="actions">
+                <button onclick="document.getElementById('lastYearFileInput').click()">📂 上传去年数据（可选）</button>
+                <input type="file" id="lastYearFileInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleLastYearFile(event)">
+                <button onclick="loadBuiltInSample()">📥 重置示例数据</button>
+                <button class="primary" onclick="exportReport()">📎 导出 Excel 报表</button>
+            </div>
+        </div>
+
+        <!-- 上传区域 -->
+        <div class="upload-area" id="uploadArea" onclick="document.getElementById('mainFileInput').click()">
+            <input type="file" id="mainFileInput" accept=".xlsx,.xls,.csv" onchange="handleMainFile(event)">
+            <div>📁 <strong>点击或拖拽上传今年销售数据</strong> (Excel / CSV)</div>
+            <p style="font-size:12px; color:var(--text-muted);">自动识别列名：商品名、上市日期、品类、库存、销量、吊牌价、成本、退货数量</p>
+        </div>
+
+        <!-- 核心指标卡片 -->
+        <div class="stats-grid" id="statsContainer">
+            <div class="stat-card"><div class="stat-value" id="totalSku">-</div><div class="stat-label">总SKU数</div></div>
+            <div class="stat-card"><div class="stat-value" id="avgSellThrough">-</div><div class="stat-label">售罄率</div></div>
+            <div class="stat-card"><div class="stat-value" id="activationRate">-</div><div class="stat-label">动销率</div></div>
+            <div class="stat-card"><div class="stat-value" id="avgDiscount">-</div><div class="stat-label">平均折扣率</div></div>
+            <div class="stat-card"><div class="stat-value" id="grossMargin">-</div><div class="stat-label">毛利率</div></div>
+            <div class="stat-card"><div class="stat-value" id="turnoverDays">-</div><div class="stat-label">库存周转天数</div></div>
+            <div class="stat-card"><div class="stat-value" id="returnRate">-</div><div class="stat-label">退货率</div></div>
+            <div class="stat-card"><div class="stat-value" id="yoySellThrough">-</div><div class="stat-label">同比售罄变化</div></div>
+        </div>
+
+        <!-- 图表区 -->
+        <div class="charts-grid">
+            <div class="card">
+                <h3 style="margin-bottom:16px;">品类销售占比</h3>
+                <div class="chart-container"><canvas id="pieChart"></canvas></div>
+            </div>
+            <div class="card">
+                <h3 style="margin-bottom:16px;">品类售罄率对比</h3>
+                <div class="chart-container"><canvas id="barChart"></canvas></div>
+            </div>
+            <div class="card" style="grid-column: span 2;">
+                <h3 style="margin-bottom:16px;">售罄率 vs 折扣率 (品类气泡图 · 气泡大小代表SKU数)</h3>
+                <div class="chart-container" style="height:400px;"><canvas id="bubbleChart"></canvas></div>
+            </div>
+        </div>
+
+        <!-- 品类同比表格 -->
+        <div class="card">
+            <h3 style="margin-bottom:16px;">📅 品类同比对比 (今年 vs 去年)</h3>
+            <div id="yoyTableContainer">
+                <p style="color:var(--text-muted);">上传去年数据后自动显示同比分析。</p>
+            </div>
+        </div>
+
+        <!-- 商品明细 -->
+        <div class="card">
+            <h3 style="margin-bottom:16px;">📋 商品明细表</h3>
+            <div class="filter-bar">
+                <select id="categoryFilter"><option value="">全部品类</option></select>
+                <select id="statusFilter">
+                    <option value="">全部预警</option>
+                    <option value="hot">🔥热门预警</option>
+                    <option value="normal">✅正常</option>
+                    <option value="slow">⚠️滞销预警</option>
+                </select>
+                <input type="text" id="searchInput" placeholder="搜索商品名...">
+            </div>
+            <div style="overflow-x:auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>商品名</th><th>品类</th><th>上市日期</th><th>库存</th><th>销量</th>
+                            <th>售罄率</th><th>进度</th><th>毛利率</th><th>退货率</th><th>预警</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // ==================== 全局数据 ====================
+        let currentYearData = [];
+        let lastYearData = [];
+        let currentYear = null;
+        let lastYear = null;
+        let pieChartInstance, barChartInstance, bubbleChartInstance;
+
+        // ==================== 工具函数 ====================
+        function parseDate(str) {
+            if (!str) return null;
+            if (typeof str === 'number') {
+                return new Date((str - 25569) * 86400 * 1000);
+            }
+            const d = new Date(str);
+            return isNaN(d) ? null : d;
+        }
+
+        function getYear(dateStr) {
+            const d = parseDate(dateStr);
+            return d ? d.getFullYear() : null;
+        }
+
+        // 自动映射列名
+        function mapColumns(headers) {
+            const map = {};
+            headers.forEach((h, i) => {
+                const clean = h.toString().trim().toLowerCase();
+                if (/商品名|名称|品名|name/.test(clean)) map.name = i;
+                else if (/上市日期|上架日期|日期|date/.test(clean)) map.date = i;
+                else if (/品类|类别|分类|category/.test(clean)) map.category = i;
+                else if (/库存|stock/.test(clean) && !/退货/.test(clean)) map.stock = i;
+                else if (/销量|销售数量|sales/.test(clean)) map.sales = i;
+                else if (/吊牌价|原价|标价|price/.test(clean)) map.tagPrice = i;
+                else if (/成本|cost/.test(clean)) map.cost = i;
+                else if (/退货|return/.test(clean)) map.return = i;
+            });
+            if (map.name === undefined || map.date === undefined || map.stock === undefined || map.sales === undefined) {
+                alert('未找到必需列：商品名、上市日期、库存、销量。请检查Excel列名。');
+                return null;
+            }
+            return map;
+        }
+
+        function parseSheetData(sheet) {
+            const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+            if (data.length < 2) return [];
+            const headers = data[0];
+            const colMap = mapColumns(headers);
+            if (!colMap) return [];
+
+            const rows = [];
+            for (let i = 1; i < data.length; i++) {
+                const row = data[i];
+                if (!row || row.every(cell => cell === '' || cell === undefined)) continue;
+                const name = row[colMap.name]?.toString().trim();
+                if (!name) continue;
+                const dateVal = row[colMap.date];
+                const stock = parseFloat(row[colMap.stock]) || 0;
+                const sales = parseFloat(row[colMap.sales]) || 0;
+                if (stock <= 0) continue;
+                const tagPrice = colMap.tagPrice !== undefined ? parseFloat(row[colMap.tagPrice]) || 0 : 0;
+                const cost = colMap.cost !== undefined ? parseFloat(row[colMap.cost]) || 0 : 0;
+                const returnQty = colMap.return !== undefined ? parseFloat(row[colMap.return]) || 0 : 0;
+                const category = colMap.category !== undefined ? row[colMap.category]?.toString().trim() || '未分类' :
+                    '未分类';
+                const dateStr = typeof dateVal === 'number' ? XLSX.SSF.parse_date_code(dateVal) : dateVal.toString();
+                const year = getYear(dateStr);
+                rows.push({ name, date: dateStr, category, stock, sales, tagPrice, cost, returnQty, year });
+            }
+            return rows;
+        }
+
+        // 计算指标
+        function computeMetrics(data) {
+            if (data.length === 0) return {};
+            const totalSku = data.length;
+            const totalSales = data.reduce((s, r) => s + r.sales, 0);
+            const totalStock = data.reduce((s, r) => s + r.stock, 0);
+            const totalCost = data.reduce((s, r) => s + r.cost * r.sales, 0);
+            const totalRevenue = data.reduce((s, r) => s + r.tagPrice * r.sales, 0);
+            const totalReturn = data.reduce((s, r) => s + r.returnQty, 0);
+            const activeSku = data.filter(r => r.sales > 0).length;
+            const sellThrough = totalStock > 0 ? (totalSales / totalStock * 100) : 0;
+            const activation = totalSku > 0 ? (activeSku / totalSku * 100) : 0;
+            // 毛利率 = (销售额 - 成本) / 销售额
+            const grossMargin = totalRevenue > 0 ? ((totalRevenue - totalCost) / totalRevenue * 100) : 0;
+            const dailySales = totalSales / 30;
+            const turnoverDays = dailySales > 0 ? totalStock / dailySales : Infinity;
+            const returnRate = totalSales > 0 ? (totalReturn / totalSales * 100) : 0;
+            // 平均折扣率 用 (吊牌价总额 - 成本总额)/吊牌价总额 近似模拟 (通常折扣率 = 1 - 实收/吊牌，这里用成本代替实收不严谨，但仅作参考)
+            const avgDiscount = totalRevenue > 0 ? ((totalRevenue - totalCost) / totalRevenue * 100) : 0;
+            return { totalSku, sellThrough, activation, grossMargin, turnoverDays, avgDiscount, returnRate };
+        }
+
+        // 品类汇总
+        function categorySummary(data) {
+            const map = new Map();
+            data.forEach(r => {
+                if (!map.has(r.category)) {
+                    map.set(r.category, { sales: 0, stock: 0, sku: 0, totalCost: 0, totalRevenue: 0 });
+                }
+                const cat = map.get(r.category);
+                cat.sales += r.sales;
+                cat.stock += r.stock;
+                cat.sku += 1;
+                cat.totalCost += r.cost * r.sales;
+                cat.totalRevenue += r.tagPrice * r.sales;
+            });
+            for (let [cat, v] of map) {
+                v.sellThrough = v.stock > 0 ? (v.sales / v.stock * 100) : 0;
+                v.grossMargin = v.totalRevenue > 0 ? ((v.totalRevenue - v.totalCost) / v.totalRevenue * 100) : 0;
+                v.discount = v.totalRevenue > 0 ? ((v.totalRevenue - v.totalCost) / v.totalRevenue * 100) : 0;
+            }
+            return map;
+        }
+
+        // ==================== 渲染 ====================
+        function renderAll() {
+            if (currentYearData.length === 0) {
+                clearDisplay();
+                return;
+            }
+            const metrics = computeMetrics(currentYearData);
+            updateStats(metrics);
+            updateCharts();
+            updateYoYTable();
+            updateTable();
+            populateFilters();
+        }
+
+        function clearDisplay() {
+            ['totalSku', 'avgSellThrough', 'activationRate', 'grossMargin', 'turnoverDays', 'avgDiscount', 'returnRate',
+                'yoySellThrough'
+            ].forEach(id => document.getElementById(id).textContent = '-');
+            document.getElementById('tableBody').innerHTML = '';
+            document.getElementById('yoyTableContainer').innerHTML =
+                '<p style="color:var(--text-muted);">暂无数据</p>';
+            if (pieChartInstance) pieChartInstance.destroy();
+            if (barChartInstance) barChartInstance.destroy();
+            if (bubbleChartInstance) bubbleChartInstance.destroy();
+        }
+
+        function updateStats(m) {
+            document.getElementById('totalSku').textContent = m.totalSku || 0;
+            document.getElementById('avgSellThrough').textContent = (m.sellThrough || 0).toFixed(1) + '%';
+            document.getElementById('activationRate').textContent = (m.activation || 0).toFixed(1) + '%';
+            document.getElementById('grossMargin').textContent = (m.grossMargin || 0).toFixed(1) + '%';
+            document.getElementById('turnoverDays').textContent = m.turnoverDays === Infinity ? '∞' : (m.turnoverDays || 0)
+                .toFixed(0) + '天';
+            document.getElementById('avgDiscount').textContent = (m.avgDiscount || 0).toFixed(1) + '%';
+            document.getElementById('returnRate').textContent = (m.returnRate || 0).toFixed(1) + '%';
+
+            if (lastYearData.length > 0) {
+                const lastMetrics = computeMetrics(lastYearData);
+                const change = m.sellThrough - lastMetrics.sellThrough;
+                const sign = change >= 0 ? '+' : '';
+                document.getElementById('yoySellThrough').textContent = `${sign}${change.toFixed(1)}%`;
+            } else {
+                document.getElementById('yoySellThrough').textContent = '需去年数据';
+            }
+        }
+
+        function updateCharts() {
+            const catMap = categorySummary(currentYearData);
+            const categories = Array.from(catMap.keys());
+            const salesData = categories.map(c => catMap.get(c).sales);
+            const sellThroughData = categories.map(c => catMap.get(c).sellThrough);
+            const discountData = categories.map(c => catMap.get(c).discount);
+            const skuCount = categories.map(c => catMap.get(c).sku);
+
+            // 环形图
+            const pieCtx = document.getElementById('pieChart').getContext('2d');
+            if (pieChartInstance) pieChartInstance.destroy();
+            pieChartInstance = new Chart(pieCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: categories,
+                    datasets: [{
+                        data: salesData,
+                        backgroundColor: ['#c4a8a2', '#a3b5a6', '#9aaab7', '#d4c9bc', '#b0bcc4',
+                            '#d4b5b0'],
+                        borderWidth: 0
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+            });
+
+            // 柱状图
+            const barCtx = document.getElementById('barChart').getContext('2d');
+            if (barChartInstance) barChartInstance.destroy();
+            barChartInstance = new Chart(barCtx, {
+                type: 'bar',
+                data: {
+                    labels: categories,
+                    datasets: [{ label: '售罄率 %', data: sellThroughData, backgroundColor: '#c4a8a2' }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: { legend: { display: false } }
+                }
+            });
+
+            // 气泡图 - 气泡更大、更清晰
+            const bubbleCtx = document.getElementById('bubbleChart').getContext('2d');
+            if (bubbleChartInstance) bubbleChartInstance.destroy();
+            // 气泡半径：基础大小 12，再加上 SKU 数的倍数，确保最小值也醒目
+            const bubbleData = categories.map((c, i) => ({
+                x: sellThroughData[i],
+                y: discountData[i],
+                r: Math.max(skuCount[i] * 2, 12) // 最小半径12，最大可根据SKU数放大
+            }));
+            bubbleChartInstance = new Chart(bubbleCtx, {
+                type: 'bubble',
+                data: {
+                    datasets: [{
+                        label: '品类',
+                        data: bubbleData,
+                        backgroundColor: '#c4a8a288',
+                        borderColor: '#c4a8a2',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { title: { display: true, text: '售罄率 %' }, beginAtZero: true },
+                        y: { title: { display: true, text: '折扣率 %' }, beginAtZero: true }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => {
+                                    const cat = categories[ctx.dataIndex];
+                                    return `${cat}: 售罄率 ${ctx.raw.x}%, 折扣率 ${ctx.raw.y}%`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateYoYTable() {
+            if (lastYearData.length === 0) {
+                document.getElementById('yoyTableContainer').innerHTML =
+                    '<p style="color:var(--text-muted);">未上传去年数据，无法计算同比。点击右上角按钮上传去年Excel。</p>';
+                return;
+            }
+            const thisYearCat = categorySummary(currentYearData);
+            const lastYearCat = categorySummary(lastYearData);
+            const allCats = new Set([...thisYearCat.keys(), ...lastYearCat.keys()]);
+            let html =
+                `<table><thead><tr><th>品类</th><th>今年售罄率</th><th>去年售罄率</th><th>同比变化</th><th>今年折扣率</th></tr></thead><tbody>`;
+            allCats.forEach(cat => {
+                const t = thisYearCat.get(cat) || { sellThrough: 0, discount: 0 };
+                const l = lastYearCat.get(cat) || { sellThrough: 0 };
+                const change = t.sellThrough - l.sellThrough;
+                const sign = change >= 0 ? '▲' : '▼';
+                html += `<tr>
+                    <td>${cat}</td>
+                    <td>${t.sellThrough.toFixed(1)}%</td>
+                    <td>${l.sellThrough.toFixed(1)}%</td>
+                    <td style="color:${change>=0?'#b87060':'#6b8299'}">${sign} ${change.toFixed(1)}%</td>
+                    <td>${t.discount.toFixed(1)}%</td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            document.getElementById('yoyTableContainer').innerHTML = html;
+        }
+
+        function updateTable() {
+            const catFilter = document.getElementById('categoryFilter').value;
+            const statusFilter = document.getElementById('statusFilter').value;
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            let filtered = currentYearData.filter(r => {
+                if (catFilter && r.category !== catFilter) return false;
+                const rate = r.stock > 0 ? (r.sales / r.stock * 100) : 0;
+                let status = rate > 50 ? 'hot' : (rate < 10 ? 'slow' : 'normal');
+                if (statusFilter && status !== statusFilter) return false;
+                if (search && !r.name.toLowerCase().includes(search)) return false;
+                return true;
+            });
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = filtered.map(r => {
+                const rate = r.stock > 0 ? (r.sales / r.stock * 100) : 0;
+                let status = rate > 50 ? 'hot' : (rate < 10 ? 'slow' : 'normal');
+                let badge = status === 'hot' ? '<span class="badge badge-hot">🔥热门</span>' :
+                    status === 'slow' ? '<span class="badge badge-slow">⚠️滞销</span>' :
+                    '<span class="badge badge-normal">✅正常</span>';
+                const margin = r.tagPrice > 0 ? ((r.tagPrice - r.cost) / r.tagPrice * 100) : 0;
+                const retRate = r.sales > 0 ? (r.returnQty / r.sales * 100) : 0;
+                const barWidth = Math.min(rate, 100);
+                let barClass = status === 'hot' ? 'fill-hot' : (status === 'slow' ? 'fill-slow' : 'fill-normal');
+                return `<tr>
+                    <td>${r.name}</td><td>${r.category}</td><td>${r.date}</td>
+                    <td>${r.stock}</td><td>${r.sales}</td>
+                    <td>${rate.toFixed(1)}%</td>
+                    <td><div class="progress-bar"><div class="progress-fill ${barClass}" style="width:${barWidth}%"></div></div></td>
+                    <td>${margin.toFixed(1)}%</td><td>${retRate.toFixed(1)}%</td>
+                    <td>${badge}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        function populateFilters() {
+            const cats = [...new Set(currentYearData.map(r => r.category))];
+            const sel = document.getElementById('categoryFilter');
+            sel.innerHTML = '<option value="">全部品类</option>' + cats.map(c => `<option value="${c}">${c}</option>`)
+                .join('');
+        }
+
+        // ==================== 文件处理 ====================
+        function processFile(file, callback) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rows = parseSheetData(sheet);
+                callback(rows);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function handleMainFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            processFile(file, (rows) => {
+                if (rows.length === 0) { alert('未解析到有效数据，请检查文件格式。'); return; }
+                const years = [...new Set(rows.map(r => r.year).filter(y => y))].sort((a, b) => b - a);
+                currentYear = years[0];
+                lastYear = years.length > 1 ? years[1] : null;
+                currentYearData = rows.filter(r => r.year === currentYear);
+                lastYearData = lastYear ? rows.filter(r => r.year === lastYear) : [];
+                renderAll();
+            });
+        }
+
+        function handleLastYearFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            processFile(file, (rows) => {
+                if (rows.length === 0) { alert('未解析到有效数据'); return; }
+                lastYearData = rows;
+                lastYear = rows[0]?.year || null;
+                renderAll();
+            });
+        }
+
+        // 拖拽上传
+        const uploadArea = document.getElementById('uploadArea');
+        uploadArea.addEventListener('dragover', (e) => { e.preventDefault();
+            uploadArea.classList.add('dragover'); });
+        uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                processFile(file, (rows) => {
+                    if (rows.length === 0) { alert('未解析到有效数据'); return; }
+                    const years = [...new Set(rows.map(r => r.year).filter(y => y))].sort((a, b) => b - a);
+                    currentYear = years[0];
+                    lastYear = years.length > 1 ? years[1] : null;
+                    currentYearData = rows.filter(r => r.year === currentYear);
+                    lastYearData = lastYear ? rows.filter(r => r.year === lastYear) : [];
+                    renderAll();
+                });
+            }
+        });
+
+        // 筛选监听
+        document.getElementById('categoryFilter').addEventListener('change', updateTable);
+        document.getElementById('statusFilter').addEventListener('change', updateTable);
+        document.getElementById('searchInput').addEventListener('input', updateTable);
+
+        // 导出 Excel
+        function exportReport() {
+            if (currentYearData.length === 0) { alert('无数据可导出'); return; }
+            const wb = XLSX.utils.book_new();
+
+            const detailData = currentYearData.map(r => {
+                const rate = r.stock > 0 ? (r.sales / r.stock * 100) : 0;
+                const margin = r.tagPrice > 0 ? ((r.tagPrice - r.cost) / r.tagPrice * 100) : 0;
+                const retRate = r.sales > 0 ? (r.returnQty / r.sales * 100) : 0;
+                return { ...r, 售罄率: rate.toFixed(1) + '%', 毛利率: margin.toFixed(1) + '%', 退货率: retRate.toFixed(
+                        1) + '%' };
+            });
+            const ws1 = XLSX.utils.json_to_sheet(detailData);
+            XLSX.utils.book_append_sheet(wb, ws1, '商品明细');
+
+            const catMap = categorySummary(currentYearData);
+            const catArr = [];
+            for (let [cat, v] of catMap) {
+                catArr.push({ 品类: cat, 销量: v.sales, 库存: v.stock, 售罄率: v.sellThrough.toFixed(1) + '%', 毛利率: v
+                        .grossMargin.toFixed(1) + '%', SKU数: v.sku });
+            }
+            const ws2 = XLSX.utils.json_to_sheet(catArr);
+            XLSX.utils.book_append_sheet(wb, ws2, '品类汇总');
+
+            if (lastYearData.length > 0) {
+                const lastCatMap = categorySummary(lastYearData);
+                const yoyArr = [];
+                for (let [cat, v] of catMap) {
+                    const l = lastCatMap.get(cat) || { sellThrough: 0 };
+                    yoyArr.push({ 品类: cat, 今年售罄率: v.sellThrough.toFixed(1) + '%', 去年售罄率: l.sellThrough.toFixed(
+                            1) + '%', 同比变化: (v.sellThrough - l.sellThrough).toFixed(1) + '%' });
+                }
+                const ws3 = XLSX.utils.json_to_sheet(yoyArr);
+                XLSX.utils.book_append_sheet(wb, ws3, '同比对比');
+            }
+
+            XLSX.writeFile(wb, `商品运营看板_${new Date().toISOString().slice(0,10)}.xlsx`);
+        }
+
+        // ==================== 内置示例数据（打开页面即显示） ====================
+        function loadBuiltInSample() {
+            const sampleCSV = `商品名,上市日期,品类,库存,销量,吊牌价,成本,退货数量
+        真丝吊带连衣裙,2026-07-01,连衣裙,200,45,899,320,2
+        羊毛混纺西装,2026-06-28,衬衫,150,82,1299,480,1
+        宽松棉麻衬衫,2026-07-05,衬衫,180,15,699,240,0
+        高腰阔腿裤,2026-07-03,裤装,220,8,799,280,1
+        羊绒围巾,2026-07-06,配饰,100,60,1299,380,3
+        复古牛仔夹克,2026-06-30,衬衫,160,90,999,350,0
+        亚麻短袖T恤,2026-07-07,针织,300,25,499,180,2
+        真丝印花丝巾,2026-07-08,配饰,120,3,599,210,1
+        法式碎花半裙,2026-07-02,连衣裙,180,95,799,290,4
+        手工编织草帽,2026-07-09,配饰,80,2,459,160,0
+        醋酸缎面衬衫,2026-07-04,衬衫,200,55,899,310,1
+        马海毛开衫,2026-06-29,针织,130,12,1099,400,2
+        真丝吊带连衣裙,2025-07-01,连衣裙,250,40,899,320,1
+        羊毛混纺西装,2025-06-28,衬衫,180,78,1299,480,0
+        复古牛仔夹克,2025-06-30,衬衫,200,85,999,350,2
+        高腰阔腿裤,2025-07-03,裤装,200,15,799,280,1`;
+
+            const rows = sampleCSV.split('\n').filter(line => line.trim().length > 0);
+            const headers = rows[0].split(',').map(h => h.trim());
+            const dataRows = rows.slice(1).map(line => {
+                const vals = line.split(',').map(v => v.trim());
+                return {
+                    name: vals[0],
+                    date: vals[1],
+                    category: vals[2],
+                    stock: +vals[3],
+                    sales: +vals[4],
+                    tagPrice: +vals[5],
+                    cost: +vals[6],
+                    returnQty: +vals[7],
+                    year: getYear(vals[1])
+                };
+            });
+
+            const years = [...new Set(dataRows.map(r => r.year))].sort((a, b) => b - a);
+            currentYear = years[0];
+            lastYear = years.length > 1 ? years[1] : null;
+            currentYearData = dataRows.filter(r => r.year === currentYear);
+            lastYearData = lastYear ? dataRows.filter(r => r.year === lastYear) : [];
+            renderAll();
+        }
+
+        // 页面加载完成自动显示示例数据
+        window.addEventListener('DOMContentLoaded', () => {
+            loadBuiltInSample();
+        });
+    </script>
+</body>
+</html>
